@@ -1,0 +1,81 @@
+---
+title: "Practical Machine learning Course Project"
+author: "Bijoy Joseph"
+date: "Sunday, April 26, 2015"
+output: html_document
+---
+
+## Background
+The aim of this assignment is to utilize some sample data from the personal fitness devices on the quality of certain exercises to predict the manner in which they did the exercise.
+
+##Analysis
+This analysis will build a machine learning model from the sample data to predict the manner in which the exercise was performed. This is a classification problem into discrete categories, which in the training data are located in the ‘classe’ variable.
+
+Load and Preprocess
+The analysis starts by downloading the data into local files. There will be created 2 data sets, the training data set and the testing data set.
+
+```{r}
+library(caret, quietly=TRUE)
+url_train <- 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+url_test <- 'https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+
+pml_train <- read.csv(file = 'pml-training.csv',
+                      na.strings = c('NA','#DIV/0!',''))
+pml_quiz <- read.csv(file = 'pml-testing.csv',
+                     na.strings = c('NA','#DIV/0!',''))
+```
+
+Exploratory data Analysis shows that the first 7 fields of the data are dimensional, and not relevant to the prediction model. The remainder of the columns cast into numeric data with the exception of the last column, which will be used to classify the prediction model.
+
+```{r}
+for(i in c(8:ncol(pml_train)-1)) {
+ pml_train[,i] = as.numeric(as.character(pml_train[,i]))
+  pml_quiz[,i] = as.numeric(as.character(pml_quiz[,i]))
+}
+```
+Several variables are very sparse and so are not as useful for building a training model. We will remove the columns with null values, and removes the initial 7 columns of dimensional data that also do not influence the trainig model as seen from the analysis. We will take these column names off the variable index into the training data and validation data.
+
+```{r}
+feature_index <- colnames(pml_train)
+feature_index <- colnames(pml_train[colSums(is.na(pml_train)) == 0])
+feature_index <- feature_index[-c(1:7)]
+```
+
+Split data provided into testing and validation
+With a set seed, 80% of the data is taken into the training and 20% of the data used as validation. 
+
+```{r}
+set.seed(1300)
+index_train <- createDataPartition(y=pml_train$classe, p=0.80, list=FALSE)
+data_train <- pml_train[index_train,feature_index]
+data_xval <- pml_train[-index_train,feature_index]
+dim(data_train); dim(data_xval)
+```
+
+From preliminary analysis, a random forest model was chosen.
+
+```{r}
+mod_rf <- train(classe ~ .,
+                data = data_train, 
+                method = 'rf', 
+                trControl = trainControl(method = "cv", 
+                                         number = 4, 
+                                         allowParallel = TRUE, 
+                                         verboseIter = TRUE))
+pred_rf <- predict(mod_rf,data_xval)
+cm_rf <- confusionMatrix(pred_rf,data_xval$classe)
+
+```
+
+Predictions Against Cross Validation Data
+For each candidate model, predictions are made against the cross-validation data set. Then, a confusion matrix is calculated and stored for each model for later reference.
+
+The Random Forest model appears to be the most accurate. 
+
+Now we will examine the confusion matrix object from the cross-validation data for the random forest model.
+
+```{r}
+cm_rf
+```
+
+The accuracy of the model is 0.9944. The out of sample error is 0.0056. The out of sample error is calculated as 1 - accuracy for predictions made against the cross-validation set. Considering that the test set is a sample size of 20, an accuracy rate well above 99% is sufficient to expect that few or none of the test samples will be mis-classified.
